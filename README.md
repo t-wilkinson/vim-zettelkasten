@@ -1,5 +1,6 @@
 # Vim Zettelkasten
-/an interpretation and implementation of the Zettelkasten technique./
+*an interpretation and implementation of the Zettelkasten technique.*
+
 If you don't know what a [Zettelkasten](https://en.wikipedia.org/wiki/Zettelkasten), I recommend you look it up. However, the general ideas are:
 1. Have notes which are atomic, very well thought out, short, and concise.
 1. Have connections between notes, these are very important.
