@@ -1,4 +1,3 @@
-" NOTE: This uses '\f' characters to separate items. Let me know if this is an issue.
 "============================= Dependencies ================================
 
 if !executable('fd') " faster and simpler find
@@ -15,7 +14,7 @@ endif
 
 " File stuff. Use a single, non-nested directory to store all files.
 let s:script_dir = expand('<sfile>:h')
-let s:main_dir = get(g:, 'z_main_dir', $HOME . "/notes/")
+let s:main_dir = get(g:, 'z_main_dir', $HOME . "/tmp/")
 let s:ext = get(g:, 'z_default_extension', '.md')
 
 let s:window_direction = get(g:, 'z_window_direction', 'down')
@@ -54,6 +53,8 @@ endif
 
 " l=link → yanks link to @" register
 let s:new_link_key = get(g:, 'z_new_link_key', 'ctrl-l')
+" u=unlink → unlink buffer with selection list
+let s:unlink_key = get(g:, 'z_unlink_key', 'ctrl-u')
 " d=delete → delete all selected notes, asks user for confirmation
 let s:delete_note_key = get(g:, 'z_delete_note_key', 'ctrl-d')
 " r=rename → rename the header of selected files to 'input()'
@@ -66,11 +67,11 @@ let s:keymap = get(g:, 'z_keymap',
             \ })
 
 let s:create_note_window = get(g:, 'z_create_note_window', 'edit ')
-" Use `extend` in case user overrides default keys
 let s:keymap = extend(s:keymap, {
             \ s:new_link_key : s:create_note_window,
             \ s:delete_note_key : s:create_note_window,
             \ s:rename_notes_key : s:create_note_window,
+            \ s:unlink_key : s:create_note_window,
             \ })
 
 " FZF expects a comma separated string.
@@ -107,6 +108,14 @@ function! s:parse_previewbody(previewbody)
     let [filetime; filebody] = a:previewbody
     let basename = s:time_to_basename(l:filetime)
     return [l:basename, l:filebody]
+endfunction
+
+" Replace all `[name]('basename')` with `name`
+function! s:remove_link(basename)
+    return {key,val -> substitute(val,
+                \ '\[\(.\{-}\)](\(' . a:basename . '\))',
+                \ '\1',
+                \ 'g')}
 endfunction
 
 "============================== Handler Function ===========================
@@ -162,13 +171,11 @@ function! s:handler(lines) abort
             return
         endif
 
-        " Replace all '[name]("basename")' with 'name'
+        " Replace all '[name]("basename")' with 'name' in all notes
         for filename in glob(s:main_dir . "*" . s:ext, 0, 1, 1)
-            let Regex = {key,val -> substitute(val,
-                        \ '\[\(.\{-}\)](\(' . join(basenames, '\|') . '\))',
-                        \ '\1',
-                        \ 'g')}
-            call writefile(map(readfile(filename), Regex), filename)
+            let Regex = s:remove_link(join(basenames, '\|'))
+            let filebody = map(readfile(filename), Regex)
+            call writefile(filebody, filename)
         endfor
 
         " Finally delete selected files and their buffers (if the are loaded)
@@ -181,6 +188,27 @@ function! s:handler(lines) abort
             endif
             call delete(basename)
         endfor
+
+    elseif keypress ==? s:unlink_key
+        let buf_name = bufname("%")
+        let buf_filebody = readfile(buf_name)
+        let buf_basename = matchlist(buf_name, '\v(\d*'.s:ext.')')[1]
+
+        for previewbody in previewbodies
+            let [basename, filebody] = s:parse_previewbody(previewbody)
+            let title = s:trim_title(filebody[0])
+
+            " Remove links in 'filebody'
+            let filebody = map(filebody, s:remove_link(buf_basename))
+            call writefile(filebody, s:main_dir . basename)
+            call s:redraw_file(s:main_dir . basename)
+
+            " Remove links in 'buf_filebody'
+            call map(buf_filebody, s:remove_link(basename))
+            call writefile(buf_filebody, buf_name)
+        endfor
+
+        call s:redraw_file(buf_name)
 
     " Create a link from current file to all files referencing title
     elseif keypress ==? s:new_link_key
@@ -195,7 +223,7 @@ function! s:handler(lines) abort
         let buf_link = s:create_link(buf_title, buf_basename)
 
         for previewbody in previewbodies
-            let [basename, filebody] = s:parse_filebody(previewbody)
+            let [basename, filebody] = s:parse_previewbody(previewbody)
             let title = s:trim_title(filebody[0])
 
             " Place link in current filebody (don't link pre-existing link)

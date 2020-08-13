@@ -9,3 +9,5 @@
 1. A one stop shop for all of your notes and ideas.
 
 The goal of this implementation is to provide a very fast and intuitive infastructure for creating, editing, and viewing your notes.
+
+> This uses '\f' characters to separate items and may be an issue.
