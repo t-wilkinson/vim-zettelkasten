@@ -139,7 +139,7 @@ function! s:handler(lines) abort
     if empty(previewbodies)
         let filename = s:main_dir . strftime("%Y%W%u%H%M%S") . s:ext " YYYYWWDHHMMSS
         let startswithhash = (match(query, '^#') != -1) ? "" : "#"
-        call writefile([startswithhash . query], filename)
+        call writefile([startswithhash . query, repeat('_', 80)], filename)
         execute cmd filename
 
     " Replace all references to current buffer title with user replacement
@@ -199,7 +199,7 @@ function! s:handler(lines) abort
                     execute "bdelete" bufinfo[0].name
                 endif
             endif
-            call delete(basename)
+            call delete(s:main_dir . basename)
         endfor
 
     elseif keypress ==? s:unlink_key
@@ -341,7 +341,7 @@ command! -range -nargs=* -bang ZV
             \ 'sink*': function(exists('*z_note_handler') ? 'z_note_handler' : '<sid>handler'),
             \ 'window': s:window_command,
             \ s:window_direction: s:window_width,
-            \ 'source': s:script_dir . '/source.sh' . ' ' . shellescape(join([s:main_dir, s:ext])),
+            \ 'source': s:script_dir . '/source.sh'.' '.shellescape(s:main_dir).' '.s:ext,
             \ 'options': join([
             \   s:fzf_options,
             \   '--query=' . s:get_visual_selection(),
@@ -351,13 +351,16 @@ command! -range -nargs=* -bang ZV
 
 
 " Clean http/s link for mardown
-function! s:clean_http_link() abort
-    " reg [1]=scheme [2]=rest [3]=resource
-    let reg = getreg(s:reg)
-    let link = matchlist(reg, '\v^(\w+)://(.{-})/(.{-})(/)?$')
-    let link[2:3] = map(link[2:3], "tr(v:val, '/-_', ':  ')")
-    let link = s:create_link(join(link[1:3], ':'), reg)
-    call setreg('+', link)
+function! s:clean_http_link()
+    try " may fail
+        let reg = getreg(s:reg)
+        " link [0]=match [1]=scheme [2]=rest [3]=resource
+        let link = matchlist(reg, '\v^(\w+)://(.{-})/(.{-})(/)?$')
+        let link[2:3] = map(link[2:3], "tr(v:val, '/-_', ':  ')")
+        let link = s:create_link(join(link[1:3], ':'), reg)
+        call setreg('+', link)
+    catch /^Vim\%((\a\+)\)\=:E684/
+    endtry
 endfunction
 
 command! ToMarkdownLink call s:clean_http_link()
