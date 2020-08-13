@@ -1,13 +1,4 @@
 " NOTE: This uses '\f' characters to separate items. Let me know if this is an issue.
-"============================== Utility functions =============================
-
-" XXX: fnameescape vs. shellescape: for vim's consumption vs. the shell's
-" consumption
-
-function! s:single_quote(str)
-    return "'" . a:str . "'"
-endfunction
-
 "============================= Dependencies ================================
 
 if !executable('fd') " faster and simpler find
@@ -22,13 +13,7 @@ endif
 
 "============================== User settings ==============================
 
-
-if exists('g:z_search_paths')
-    echoerr "`g:z_search_paths` is a single `g:main_dir`. You'll thank me later"
-    finish
-endif
-
-" File stuff. Use a single, non-nested directory to store all files
+" File stuff. Use a single, non-nested directory to store all files.
 let s:script_dir = expand('<sfile>:h')
 let s:main_dir = get(g:, 'z_main_dir', $HOME . "/notes/")
 let s:ext = get(g:, 'z_default_extension', '.md')
@@ -89,8 +74,7 @@ let s:keymap = extend(s:keymap, {
             \ })
 
 " FZF expects a comma separated string.
-let s:expect_normal_keys = join(keys(s:keymap) + get(g:, 'z_expect_keys', []), ',')
-let s:expect_visual_keys = join(keys(s:keymap) + get(g:, 'z_expect_keys', []), ',')
+let s:expect_keys = join(keys(s:keymap) + get(g:, 'z_expect_keys', []), ',')
 
 "============================ Helper Functions ==============================
 
@@ -102,16 +86,8 @@ function! s:create_link(title, filename)
     return '[' . a:title . '](' . a:filename . ')'
 endfunction
 
-" Create new file with time based unique id
-function! s:new_file(query)
-    let filename = s:uid_to_file(strftime("%Y%W%u%H%M%S")) " YYYYWWDHHMMSS
-    let hashash = (match(a:query, '^#') != -1) ? "" : "#"
-    call writefile([hashash . a:query], filename)
-    return filename
-endfunction
-
 " Update active buffers
-function! s:update_file(filename, ...)
+function! s:redraw_file(filename, ...)
     let curwinid = get(a:, 1, win_getid())
     let winid = bufwinid(bufname(a:filename))
     if winid != -1
@@ -121,15 +97,15 @@ function! s:update_file(filename, ...)
     endif
 endfunction
 
-" Convert readable 'filetime' to 'filename'
-function! s:file_basename(filetime)
+" Convert human-readable 'filetime' to a machine-readable 'filename''s:ext'
+function! s:time_to_basename(filetime)
     return substitute(a:filetime, '\D', '', 'g') . s:ext
 endfunction
 
-" Convert preview 'filebody' to managable 'basename' and 'filebody'
-function! s:read_filebody(filebody)
-    let [filename; filebody] = a:filebody
-    let basename = s:file_basename(l:filename)
+" Convert fzf-preview 'previewbody' to managable 'basename' and 'filebody'
+function! s:parse_previewbody(previewbody)
+    let [filetime; filebody] = a:previewbody
+    let basename = s:time_to_basename(l:filetime)
     return [l:basename, l:filebody]
 endfunction
 
@@ -140,62 +116,63 @@ function! s:handler(lines) abort
     let g:local = l:
     let g:script = s:
 
-    " Expect at least 2 elements, `query` and `keypress`, which may be empty strings.
-    " files is a list of all files selected through fzf
+    " 'a:lines' is a list consisting of [query, keypress, ...previewbodies]
     let query    = a:lines[0]
     let keypress = a:lines[1]
-    let files = map(a:lines[2:], 'split(v:val, "")')
+    let previewbodies = map(a:lines[2:], 'split(v:val, "")')
     let cmd = get(s:keymap, keypress, 'edit')
 
-    " Creating a new note, even if one of the params are empty.
-    if empty(l:files)
-        let new_file = s:new_file(query)
-        execute cmd new_file
+    " Create a new note using 'query' when fzf can't find 'query'
+    if empty(previewbodies)
+        let filename = s:main_dir . strftime("%Y%W%u%H%M%S") . s:ext " YYYYWWDHHMMSS
+        let startswithhash = (match(query, '^#') != -1) ? "" : "#"
+        call writefile([startswithhash . query], filename)
+        execute cmd filename
 
-    " Rename file and all links to it
+    " Replace all references to current buffer title with user replacement
     elseif keypress ==? s:rename_notes_key
         let buf_replacement = input("New name: ")
         let buf_name = bufname("%")
         let buf_basename = matchlist(buf_name, '\d*' . s:ext . '$')[0]
         let buf_title = s:trim_title(getline(1))
 
-        " Replace all links refering to 'buf_name' with 'buf_replacement'
-        for filebody in l:files
-            let [basename, body] = s:read_filebody(filebody)
-            let Regex = {key,val -> substitute(val, '\[.\{-}\]('.buf_basename.')', '['.buf_replacement.']('.buf_basename.')', 'g')}
-            call map(body, Regex)
-            call writefile(body, s:main_dir . basename)
-            call s:update_file(s:main_dir . basename)
-        endfor
-
-        " Update file with replacement
+        " Replace all 'buf_title' with 'buf_replacement' in current buffer
         let buf_filebody = readfile(buf_name)
         call map(buf_filebody, 'substitute(v:val, buf_title, buf_replacement, "")')
         call writefile(buf_filebody, buf_name)
-        call s:update_file(buf_name)
+        call s:redraw_file(buf_name)
 
-    " Delete note/s (does not delete modified buffers)
+        " Replace all links refering to 'buf_name' with 'buf_replacement'
+        for previewbody in previewbodies
+            let [basename, filebody] = s:parse_previewbody(previewbody)
+            " Use 'buf_basename' as it's more solid
+            let Regex = {key,val -> substitute(val, '\[.\{-}\]('.buf_basename.')', '['.buf_replacement.']('.buf_basename.')', 'g')}
+            call map(filebody, Regex)
+            call writefile(filebody, s:main_dir . basename)
+            call s:redraw_file(s:main_dir . basename)
+        endfor
+
+    " Delete all selected files and remove links to them (don't touch modified buffers)
     elseif keypress ==? s:delete_note_key
-        " Setup
-        let basenames = map(copy(l:files), 's:file_basename(v:val[0])')
-        let titles = map(copy(l:files), 's:trim_title(v:val[1])')
+        let basenames = map(copy(previewbodies), 's:time_to_basename(v:val[0])')
+        let titles = map(copy(previewbodies), 's:trim_title(v:val[1])')
 
-        " make sure the user is sure about this
         let choice = confirm("Delete " . join(basenames, ', ') . "?", "&Yes\n&Cancel", 1)
         if choice == 2
             return
         endif
 
-        " Go through each file,
+        " Replace all '[name]("basename")' with 'name'
         for filename in glob(s:main_dir . "*" . s:ext, 0, 1, 1)
-            " Regex replaces all links to 'basename' with their inside text
-            let Regex = {key,val -> substitute(val, '\[\(.\{-}\)](\(' . join(basenames, '\|') . '\))', '\1', 'g')}
-            let filebody = map(readfile(filename), Regex)
+            let Regex = {key,val -> substitute(val,
+                        \ '\[\(.\{-}\)](\(' . join(basenames, '\|') . '\))',
+                        \ '\1',
+                        \ 'g')}
+            call writefile(map(readfile(filename), Regex), filename)
         endfor
 
-        " Finally delete files and their buffers
+        " Finally delete selected files and their buffers (if the are loaded)
         for basename in basenames
-            " Delete buffer if it exists
             let bufinfo = getbufinfo(basename)
             if !empty(bufinfo)
                 if !bufinfo[0].changed && bufinfo[0].loaded
@@ -209,7 +186,7 @@ function! s:handler(lines) abort
     elseif keypress ==? s:new_link_key
         let buf_name = bufname("%")
         if match(buf_name, s:main_dir . '.\{-}' . s:ext) == -1
-            echoerr "File name must match '" . s:main_dir . ".\{-}" . s:ext . "'."
+            echoerr "Buffer name must match '" . s:main_dir . ".\{-}" . s:ext . "'."
             return
         endif
         " get buffer title+basename and create a link
@@ -217,25 +194,24 @@ function! s:handler(lines) abort
         let buf_basename = matchlist(buf_name, '\v(\d*'.s:ext.')')[1]
         let buf_link = s:create_link(buf_title, buf_basename)
 
-        for filebody in l:files
-            " get meta info
-            let [basename, body] = s:read_filebody(filebody)
-            let title = s:trim_title(body[0])
+        for previewbody in previewbodies
+            let [basename, filebody] = s:parse_filebody(previewbody)
+            let title = s:trim_title(filebody[0])
 
-            " Place link in current body (don't link pre-existing link)
-            let body[1:] = map(body[1:], "substitute(v:val, '\\[\\@<!'.buf_title.'\\]\\@!', buf_link, 'g')")
-            call writefile(body, s:main_dir . basename)
-            call s:update_file(s:main_dir . basename)
+            " Place link in current filebody (don't link pre-existing link)
+            let Regex = {key,val -> substitute(val, '\[\@<!'.buf_title.'\]\@!', buf_link, 'g')}
+            let filebody[1:] = map(filebody[1:], Regex)
+            call writefile(filebody, s:main_dir . basename)
+            call s:redraw_file(s:main_dir . basename)
 
-            " Don't append link to buffer
             if basename == buf_basename
                 continue
             endif
             " Place link in current buffer (or set register if only one file selected)
             let filelink = s:create_link(title, basename)
-            " search the whole buffer
+            " Add link to 'buf_basename' but don't duplicate links
             if search(basename, 'cnw') == 0
-                if len(l:files) == 1
+                if len(previewbodies) == 1
                     let @" = filelink
                     let @* = filelink
                     let @+ = filelink
@@ -249,19 +225,12 @@ function! s:handler(lines) abort
 
     " Execute cmd for each file files
     else
-        for filebody in l:files
-            execute cmd s:main_dir . s:file_basename(filebody[0])
+        for previewbody in previewbodies
+            execute cmd s:main_dir . s:time_to_basename(previewbody[0])
         endfor
     endif
 
 endfunction
-
-" If the file you're looking for is empty, then why does it even exist? It's a
-" note. Just type its name. Hence we ignore lines with only space characters,
-" and use the "\S" regex.
-
-" Use a big ugly option list. The '.. ' is because fzf wants a term of the
-" form 'N.. ' where N is a number.
 
 " Use `command` in front of 'rg' to ignore aliases.
 " The `' "\S" '` is so that the backslash itself doesn't require escaping.
@@ -301,11 +270,10 @@ command! -nargs=* -bang Z
             \ 'source': s:script_dir . '/source.sh' . ' ' . shellescape(s:main_dir) . ' ' . s:ext,
             \ 'options': join([
             \   s:fzf_options,
-            \   '--expect=' . s:expect_normal_keys,
+            \   '--expect=' . s:expect_keys,
             \ ]),
             \ },<bang>0))
 
-" Return visual selection
 function! s:get_visual_selection() abort
   try
     let a_save = @a
@@ -327,7 +295,7 @@ command! -range -nargs=* -bang ZV
             \ 'options': join([
             \   s:fzf_options,
             \   '--query=' . s:get_visual_selection(),
-            \   '--expect=' . s:expect_visual_keys,
+            \   '--expect=' . s:expect_keys,
             \ ]),
             \ },<bang>0))
 
