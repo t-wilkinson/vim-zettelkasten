@@ -2,7 +2,7 @@
 dir=$1
 ext=$2
 for f in $(fd . "$dir"); do
-    base=$(basename $f)
+    # Human readable time format
     year=${base:0:4}
     week=${base:4:2}
     day=${base:6:1}
@@ -10,8 +10,9 @@ for f in $(fd . "$dir"); do
     minutes=${base:9:2}
     seconds=${base:11:2}
     echo -n $year-$week-$day $hours:$minutes:$seconds $'\f'
-    # echo ${base%%$ext}
+
+    base=$(basename $f)
+    # Replace all '\n' with '\f' to preserve entropy
     cat $f | tr '\n' '\f'
     echo
-    # echo -ne '\0'
 done

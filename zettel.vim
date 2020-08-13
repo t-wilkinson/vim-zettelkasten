@@ -151,6 +151,12 @@ function! s:lines_to_file(lines)
     return s:main_dir . s:file_basename(a:lines[0])
 endfunction
 
+function! s:read_filebody(filebody)
+    let [filename; filebody] = a:filebody
+    let basename = s:file_basename(l:filename)
+    return [l:basename, l:filebody]
+endfunction
+
 "============================== Handler Function ===========================
 
 function! s:handler(lines) abort
@@ -195,10 +201,6 @@ function! s:handler(lines) abort
             return
         endif
 
-        " glob on all files
-        " read each file
-        " regex like so "s/\[\(.\{-}\)]($file)/\1/g"
-        " done
         for filename in filenames
             " Delete buffer if it exists
             let bufinfo_list = getbufinfo(filename)
@@ -217,6 +219,7 @@ function! s:handler(lines) abort
             echoerr "File name must match '" . s:main_dir . ".\{-}" . s:ext . "'."
             return
         endif
+
         " get buffer title+basename and create a link
         let buf_title = s:trim_title(getline(1))
         let buf_basename = matchlist(bufname, '\v(\d*'.s:ext.')')[1]
@@ -224,13 +227,12 @@ function! s:handler(lines) abort
 
         for filebody in l:files
             " get meta info
-            let [filename; filebody] = filebody
-            let basename = s:file_basename(filename)
-            let title = s:trim_title(filebody[0])
+            let [basename, body] = s:read_filebody(filebody)
+            let title = s:trim_title(body[0])
 
-            " Place link in current filebody (don't link pre-existing link)
-            let filebody[1:] = map(filebody[1:], "substitute(v:val, '\\[\\@<!'.buf_title.'\\]\\@!', buf_link, 'g')")
-            call writefile(filebody, s:main_dir . basename)
+            " Place link in current body (don't link pre-existing link)
+            let body[1:] = map(body[1:], "substitute(v:val, '\\[\\@<!'.buf_title.'\\]\\@!', buf_link, 'g')")
+            call writefile(body, s:main_dir . basename)
             call s:update_file(s:main_dir . basename)
 
             " Don't append link to buffer

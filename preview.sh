@@ -1,6 +1,5 @@
+#!/usr/bin/bash
 ext=$1
 body=$2
+# Replace all '\f' with '\n' now that entropy has been preseved
 tr '\f' '\n' <<< $body | bat --color=always --plain --language ${ext##.}
-# tr '\f' '\n' <<< $2 | tail -n +2 |
-# id=$(cut -b '-13' <<< $2)
-# bat --color=always --plain --language ${ext##.} "$dir$id$ext"
