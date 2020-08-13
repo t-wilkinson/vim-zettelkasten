@@ -8,6 +8,11 @@
 1. Facilitate the realization of connections between seemingly distinct ideas.
 1. A one stop shop for all of your notes and ideas.
 
-The goal of this implementation is to provide a very fast and intuitive infastructure for creating, editing, and viewing your notes.
+**Goals**
+- The goal of this implementation is to provide a very fast and intuitive infrastructure for creating, editing, and viewing your notes.
 
-> This uses '\f' characters to separate items and may be an issue.
+**Notes**
+- This package assumes you are using `$HOME/notes` for your notes.
+- Only tested on Linux, should work on macOS, probably won't work on Windows.
+- This uses '\f' characters to separate items and may be an issue.
+- Configurable options are: `z_main_dir`, `z_default_extension`, `z_window_direction`, `z_window_width`, `z_window_command`, `z_preview_direction`, `z_wrap_preview_text`, `z_show_preview`, `z_use_ignore_files`, `z_include_hidden`, `z_preview_width`

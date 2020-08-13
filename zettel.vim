@@ -14,7 +14,7 @@ endif
 
 " File stuff. Use a single, non-nested directory to store all files.
 let s:script_dir = expand('<sfile>:h')
-let s:main_dir = get(g:, 'z_main_dir', $HOME . "/tmp/")
+let s:main_dir = get(g:, 'z_main_dir', $HOME . '/notes') . '/'
 let s:ext = get(g:, 'z_default_extension', '.md')
 
 let s:window_direction = get(g:, 'z_window_direction', 'down')
