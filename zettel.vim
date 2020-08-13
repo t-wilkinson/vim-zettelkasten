@@ -14,9 +14,13 @@ endif
 
 " File stuff. Use a single, non-nested directory to store all files.
 let s:script_dir = expand('<sfile>:h')
-let s:main_dir = get(g:, 'z_main_dir', $HOME . '/notes') . '/'
+let s:main_dir = get(g:, 'z_main_dir', $HOME . '/tmp') . '/'
 let s:ext = get(g:, 'z_default_extension', '.md')
 
+" Default register
+let s:reg = get(g:, 'z_default_register', '+')
+
+" Window stuff
 let s:window_direction = get(g:, 'z_window_direction', 'down')
 let s:window_width = get(g:, 'z_window_width', '40%')
 let s:window_command = get(g:, 'z_window_command', '')
@@ -154,8 +158,12 @@ function! s:handler(lines) abort
         " Replace all links refering to 'buf_name' with 'buf_replacement'
         for previewbody in previewbodies
             let [basename, filebody] = s:parse_previewbody(previewbody)
+            if len(filebody) == 0 | continue | endif
             " Use 'buf_basename' as it's more solid
-            let Regex = {key,val -> substitute(val, '\[.\{-}\]('.buf_basename.')', '['.buf_replacement.']('.buf_basename.')', 'g')}
+            let Regex = {key,val -> substitute(val,
+                        \ '\[.\{-}\]('.buf_basename.')',
+                        \ '['.buf_replacement.']('.buf_basename.')',
+                        \ 'g')}
             call map(filebody, Regex)
             call writefile(filebody, s:main_dir . basename)
             call s:redraw_file(s:main_dir . basename)
@@ -165,6 +173,7 @@ function! s:handler(lines) abort
     elseif keypress ==? s:delete_note_key
         let basenames = map(copy(previewbodies), 's:time_to_basename(v:val[0])')
         let titles = map(copy(previewbodies), 's:trim_title(v:val[1])')
+        let join_basenames = join(basenames, '\|')
 
         let choice = confirm("Delete " . join(basenames, ', ') . "?", "&Yes\n&Cancel", 1)
         if choice == 2
@@ -173,8 +182,12 @@ function! s:handler(lines) abort
 
         " Replace all '[name]("basename")' with 'name' in all notes
         for filename in glob(s:main_dir . "*" . s:ext, 0, 1, 1)
-            let Regex = s:remove_link(join(basenames, '\|'))
-            let filebody = map(readfile(filename), Regex)
+            let Regex = s:remove_link(join_basenames)
+            let Filter = {key,val -> -1 == match(val, '> \[.\{-}\]('.join_basenames.')')}
+
+            let filebody = readfile(filename)
+            let filebody = filter(filebody, Filter)
+            let filebody = map(filebody, Regex)
             call writefile(filebody, filename)
         endfor
 
@@ -196,39 +209,48 @@ function! s:handler(lines) abort
 
         for previewbody in previewbodies
             let [basename, filebody] = s:parse_previewbody(previewbody)
+            if len(filebody) == 0 | continue | endif
             let title = s:trim_title(filebody[0])
 
-            " Remove links in 'filebody'
-            let filebody = map(filebody, s:remove_link(buf_basename))
-            call writefile(filebody, s:main_dir . basename)
-            call s:redraw_file(s:main_dir . basename)
+            " Remove links in 'filebody' to 'basename'
+            function! s:remove_links(filebody, basename, filename)
+                " '-1 == match(...)' to keep lines that don't match regex
+                let Filter = {key,val -> -1 == match(val, '> \[.\{-}\]('.a:basename.')')}
+                let f_filebody = filter(a:filebody, Filter)
+                call map(f_filebody, s:remove_link(a:basename))
+                call writefile(f_filebody, a:filename)
+            endfunction
 
-            " Remove links in 'buf_filebody'
-            call map(buf_filebody, s:remove_link(basename))
-            call writefile(buf_filebody, buf_name)
+            call s:remove_links(filebody, buf_basename, s:main_dir . basename)
+            call s:remove_links(buf_filebody, basename, buf_name)
+            call s:redraw_file(s:main_dir . basename)
         endfor
 
         call s:redraw_file(buf_name)
 
     " Create a link from current file to all files referencing title
     elseif keypress ==? s:new_link_key
-        let buf_name = bufname("%")
-        if match(buf_name, s:main_dir . '.\{-}' . s:ext) == -1
-            echoerr "Buffer name must match '" . s:main_dir . ".\{-}" . s:ext . "'."
-            return
-        endif
         " get buffer title+basename and create a link
+        let buf_name = bufname("%")
         let buf_title = s:trim_title(getline(1))
         let buf_basename = matchlist(buf_name, '\v(\d*'.s:ext.')')[1]
         let buf_link = s:create_link(buf_title, buf_basename)
 
         for previewbody in previewbodies
             let [basename, filebody] = s:parse_previewbody(previewbody)
+            if len(filebody) == 0 | continue | endif
             let title = s:trim_title(filebody[0])
 
-            " Place link in current filebody (don't link pre-existing link)
-            let Regex = {key,val -> substitute(val, '\[\@<!'.buf_title.'\]\@!', buf_link, 'g')}
-            let filebody[1:] = map(filebody[1:], Regex)
+            " Add links in 'filebody' to 'buf_basename'
+            let HasBufname = {key,val -> match(val, buf_basename)}
+            if -1 == max(map(copy(filebody), HasBufname))
+                " there are no references to 'buf_basename' append link at bottom
+                call add(filebody, '> ' . buf_link)
+            else
+                " Make all references to 'buf_title' a link iff. it is not already a link
+                let Regex = {key,val -> substitute(val, '\[\@<!'.buf_title.'\]\@!', buf_link, 'g')}
+                let filebody[1:] = map(filebody[1:], Regex)
+            endif
             call writefile(filebody, s:main_dir . basename)
             call s:redraw_file(s:main_dir . basename)
 
@@ -244,7 +266,7 @@ function! s:handler(lines) abort
                     let @* = filelink
                     let @+ = filelink
                 else
-                    call append("$", '- ' . filelink)
+                    call append("$", '> ' . filelink)
                 endif
             endif
         endfor
@@ -327,3 +349,15 @@ command! -range -nargs=* -bang ZV
             \ ]),
             \ },<bang>0))
 
+
+" Clean http/s link for mardown
+function! s:clean_http_link() abort
+    " reg [1]=scheme [2]=rest [3]=resource
+    let reg = getreg(s:reg)
+    let link = matchlist(reg, '\v^(\w+)://(.{-})/(.{-})(/)?$')
+    let link[2:3] = map(link[2:3], "tr(v:val, '/-_', ':  ')")
+    let link = s:create_link(join(link[1:3], ':'), reg)
+    call setreg('+', link)
+endfunction
+
+command! ToMarkdownLink call s:clean_http_link()
