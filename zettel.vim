@@ -107,6 +107,10 @@ function! s:time_to_basename(filetime)
     return substitute(a:filetime, '\D', '', 'g') . s:ext
 endfunction
 
+function! s:file_basename(filename)
+    return matchlist(a:filename, '\d*'.s:ext.'$')[0]
+endfunction
+
 " Convert fzf-preview 'previewbody' to managable 'basename' and 'filebody'
 function! s:parse_previewbody(previewbody)
     let [filetime; filebody] = a:previewbody
@@ -145,17 +149,11 @@ function! s:handler(lines) abort
     " Replace all references to current buffer title with user replacement
     elseif keypress ==? s:rename_notes_key
         let buf_replacement = input("New name: ")
-        let buf_name = bufname("%")
-        let buf_basename = matchlist(buf_name, '\d*' . s:ext . '$')[0]
+        let buf_basename = s:file_basename(bufname("%"))
+        let buf_filename = s:main_dir . buf_basename
         let buf_title = s:trim_title(getline(1))
 
-        " Replace all 'buf_title' with 'buf_replacement' in current buffer
-        let buf_filebody = readfile(buf_name)
-        call map(buf_filebody, 'substitute(v:val, buf_title, buf_replacement, "")')
-        call writefile(buf_filebody, buf_name)
-        call s:redraw_file(buf_name)
-
-        " Replace all links refering to 'buf_name' with 'buf_replacement'
+        " Replace all links refering to 'buf_filename' with 'buf_replacement'
         for previewbody in previewbodies
             let [basename, filebody] = s:parse_previewbody(previewbody)
             if len(filebody) == 0 | continue | endif
@@ -169,6 +167,12 @@ function! s:handler(lines) abort
             call s:redraw_file(s:main_dir . basename)
         endfor
 
+        " Replace all 'buf_title' with 'buf_replacement' in current buffer
+        let buf_filebody = readfile(buf_filename)
+        call map(buf_filebody, 'substitute(v:val, buf_title, buf_replacement, "")')
+        call writefile(buf_filebody, buf_filename)
+        call s:redraw_file(buf_filename)
+
     " Delete all selected files and remove links to them (don't touch modified buffers)
     elseif keypress ==? s:delete_note_key
         let basenames = map(copy(previewbodies), 's:time_to_basename(v:val[0])')
@@ -176,9 +180,19 @@ function! s:handler(lines) abort
         let join_basenames = join(basenames, '\|')
 
         let choice = confirm("Delete " . join(basenames, ', ') . "?", "&Yes\n&Cancel", 1)
-        if choice == 2
-            return
-        endif
+        if choice == 2 | return | endif
+
+        " Delete selected files and their buffers (if the are loaded) first
+        for basename in basenames
+            let bufinfo = getbufinfo(basename)
+            if !empty(bufinfo)
+                if !bufinfo[0].changed && bufinfo[0].loaded
+                    execute "bdelete" bufinfo[0].name
+                endif
+            endif
+            call delete(s:main_dir . basename)
+        endfor
+        redraw!
 
         " Replace all '[name]("basename")' with 'name' in all notes
         for filename in glob(s:main_dir . "*" . s:ext, 0, 1, 1)
@@ -191,21 +205,10 @@ function! s:handler(lines) abort
             call writefile(filebody, filename)
         endfor
 
-        " Finally delete selected files and their buffers (if the are loaded)
-        for basename in basenames
-            let bufinfo = getbufinfo(basename)
-            if !empty(bufinfo)
-                if !bufinfo[0].changed && bufinfo[0].loaded
-                    execute "bdelete" bufinfo[0].name
-                endif
-            endif
-            call delete(s:main_dir . basename)
-        endfor
-
     elseif keypress ==? s:unlink_key
-        let buf_name = bufname("%")
-        let buf_filebody = readfile(buf_name)
-        let buf_basename = matchlist(buf_name, '\v(\d*'.s:ext.')')[1]
+        let buf_basename = s:file_basename(bufname("%"))
+        let buf_filename = s:main_dir . buf_basename
+        let buf_filebody = readfile(buf_filename)
 
         for previewbody in previewbodies
             let [basename, filebody] = s:parse_previewbody(previewbody)
@@ -216,25 +219,26 @@ function! s:handler(lines) abort
             function! s:remove_links(filebody, basename, filename)
                 " '-1 == match(...)' to keep lines that don't match regex
                 let Filter = {key,val -> -1 == match(val, '> \[.\{-}\]('.a:basename.')')}
-                let f_filebody = filter(a:filebody, Filter)
-                call map(f_filebody, s:remove_link(a:basename))
-                call writefile(f_filebody, a:filename)
+                let fun_filebody = filter(a:filebody, Filter)
+                call map(fun_filebody, s:remove_link(a:basename))
+                call writefile(fun_filebody, a:filename)
             endfunction
 
             call s:remove_links(filebody, buf_basename, s:main_dir . basename)
-            call s:remove_links(buf_filebody, basename, buf_name)
+            call s:remove_links(buf_filebody, basename, buf_filename)
             call s:redraw_file(s:main_dir . basename)
         endfor
 
-        call s:redraw_file(buf_name)
+        call s:redraw_file(buf_filename)
 
     " Create a link from current file to all files referencing title
+    " If only linking file, '"+*' registers are set to a link to that file
     elseif keypress ==? s:new_link_key
         " get buffer title+basename and create a link
-        let buf_name = bufname("%")
         let buf_title = s:trim_title(getline(1))
-        let buf_basename = matchlist(buf_name, '\v(\d*'.s:ext.')')[1]
+        let buf_basename = s:file_basename(bufname("%"))
         let buf_link = s:create_link(buf_title, buf_basename)
+        write
 
         for previewbody in previewbodies
             let [basename, filebody] = s:parse_previewbody(previewbody)
@@ -254,9 +258,6 @@ function! s:handler(lines) abort
             call writefile(filebody, s:main_dir . basename)
             call s:redraw_file(s:main_dir . basename)
 
-            if basename == buf_basename
-                continue
-            endif
             " Place link in current buffer (or set register if only one file selected)
             let filelink = s:create_link(title, basename)
             " Add link to 'buf_basename' but don't duplicate links
@@ -265,13 +266,14 @@ function! s:handler(lines) abort
                     let @" = filelink
                     let @* = filelink
                     let @+ = filelink
-                else
+                endif
+                if basename != buf_basename
                     call append("$", '> ' . filelink)
                 endif
             endif
+
         endfor
         redraw!
-        write
 
     " Execute cmd for each file files
     else
@@ -286,12 +288,13 @@ endfunction
 " The `' "\S" '` is so that the backslash itself doesn't require escaping.
 let s:fzf_options =
             \ join([
+            \   '--tac',
             \   '--print-query',
             \   '--cycle',
             \   '--multi',
             \   '--exact',
             \   '--inline-info',
-            \   '--tiebreak=' . 'length,begin' ,
+            \   '--tiebreak=' . 'begin,length' ,
             \   '--bind=' .  join([
             \     'alt-a:select-all',
             \     'alt-q:deselect-all',
@@ -350,6 +353,19 @@ command! -range -nargs=* -bang ZV
             \ },<bang>0))
 
 
+" " Clean http/s link for mardown
+" function! s:clean_http_link()
+"     try " may fail
+"         let reg = getreg(s:reg)
+"         " link [0]=match [1]=scheme [2]=rest [3]=resource
+"         let link = matchlist(reg, '\v^(\w+)://(.{-})/(.{-})(/)?$')
+"         let link[2:3] = map(link[2:3], "tr(v:val, '/-_', ':  ')")
+"         let link = s:create_link(join(link[2:3], ':'), reg)
+"         call setreg('+', link)
+"     catch /^Vim\%((\a\+)\)\=:E684/
+"     endtry
+" endfunction
+
 " Clean http/s link for mardown
 function! s:clean_http_link()
     try " may fail
@@ -357,7 +373,7 @@ function! s:clean_http_link()
         " link [0]=match [1]=scheme [2]=rest [3]=resource
         let link = matchlist(reg, '\v^(\w+)://(.{-})/(.{-})(/)?$')
         let link[2:3] = map(link[2:3], "tr(v:val, '/-_', ':  ')")
-        let link = s:create_link(join(link[1:3], ':'), reg)
+        let link = s:create_link(link[3], reg)
         call setreg('+', link)
     catch /^Vim\%((\a\+)\)\=:E684/
     endtry

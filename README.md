@@ -14,5 +14,7 @@
 **Notes**
 - This package assumes you are using `$HOME/notes` for your notes.
 - Only tested on Linux, should work on macOS, probably won't work on Windows.
-- This uses '\f' characters to separate items and may be an issue.
+- This uses $'\f' characters to separate items and may be an issue.
 - Configurable options are: `z_main_dir`, `z_default_extension`, `z_window_direction`, `z_window_width`, `z_window_command`, `z_preview_direction`, `z_wrap_preview_text`, `z_show_preview`, `z_use_ignore_files`, `z_include_hidden`, `z_preview_width`
+- Sorts by date created so the most recent note will be instantly accessible.
+- The goal is to have the markdown function best in the terminal but still have it look decent in markdown format in the browser.
