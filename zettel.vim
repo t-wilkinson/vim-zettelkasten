@@ -353,30 +353,30 @@ command! -range -nargs=* -bang ZV
             \ },<bang>0))
 
 
-" " Clean http/s link for mardown
-" function! s:clean_http_link()
-"     try " may fail
-"         let reg = getreg(s:reg)
-"         " link [0]=match [1]=scheme [2]=rest [3]=resource
-"         let link = matchlist(reg, '\v^(\w+)://(.{-})/(.{-})(/)?$')
-"         let link[2:3] = map(link[2:3], "tr(v:val, '/-_', ':  ')")
-"         let link = s:create_link(join(link[2:3], ':'), reg)
-"         call setreg('+', link)
-"     catch /^Vim\%((\a\+)\)\=:E684/
-"     endtry
-" endfunction
-
 " Clean http/s link for mardown
 function! s:clean_http_link()
     try " may fail
         let reg = getreg(s:reg)
-        " link [0]=match [1]=scheme [2]=rest [3]=resource
-        let link = matchlist(reg, '\v^(\w+)://(.{-})/(.{-})(/)?$')
-        let link[2:3] = map(link[2:3], "tr(v:val, '/-_', ':  ')")
-        let link = s:create_link(link[3], reg)
+        " link [0]=match [1]=scheme [2]=www [3]=rest [4]=resource
+        let link = matchlist(reg, '\v^(\w+)://(www\.)?(.{-})/(.{-})(/)?$')
+        let link[3:4] = map(link[3:4], "tr(v:val, '/-_', ':  ')")
+        let link = s:create_link(join(link[3:4], ':'), reg)
         call setreg('+', link)
     catch /^Vim\%((\a\+)\)\=:E684/
     endtry
 endfunction
+
+" " Clean http/s link for mardown
+" function! s:clean_http_link()
+"     try " may fail
+"         let reg = getreg(s:reg)
+"         " link [0]=match [1]=scheme [2]=www [3]=rest [4]=resource
+"         let link = matchlist(reg, '\v^(\w+)://(www\.)?(.{-})/(.{-})(/)?$')
+"         let link[2:4] = map(link[2:4], "tr(v:val, '/-_', ':  ')")
+"         let link = s:create_link(link[3], reg)
+"         call setreg('+', link)
+"     catch /^Vim\%((\a\+)\)\=:E684/
+"     endtry
+" endfunction
 
 command! ToMarkdownLink call s:clean_http_link()
