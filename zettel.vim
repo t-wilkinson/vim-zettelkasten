@@ -20,7 +20,6 @@ let s:ext = get(g:, 'z_default_extension', '.md')
 let s:height = {
             \ 'tag': 2,
             \ 'link': 3,
-            \ 'separator': 4,
             \ }
 
 " Default register
@@ -69,7 +68,7 @@ endif
 " l=link → yanks link to @" register
 let s:new_link_key = get(g:, 'z_new_link_key', 'ctrl-l')
 " r=remove link → unlink buffer with selection list
-let s:remove_link_key = get(g:, 'z_remove_link_key', 'ctrl-r')
+let s:remove_links_key = get(g:, 'z_remove_link_key', 'ctrl-r')
 " d=delete → delete all selected notes, asks user for confirmation
 let s:delete_note_key = get(g:, 'z_delete_note_key', 'ctrl-d')
 " t=transfer → transfer(rename) the header of selected files to 'input()'
@@ -77,20 +76,23 @@ let s:rename_notes_key = get(g:, 'z_rename_notes_key', 'ctrl-t')
 " z=zettel → create a new zettel
 let s:new_note_key = get(g:, 'z_new_note_key', 'ctrl-z')
 
-let s:keymap = get(g:, 'z_keymap',
+let s:default_command = 'edit'
+let s:commands = get(g:, 'z_commands',
             \ {'ctrl-s': 'split',
             \ 'ctrl-v': 'vertical split',
             \ 'ctrl-t': 'tabedit',
             \ })
 
 let s:create_note_window = get(g:, 'z_create_note_window', 'edit ')
-let s:keymap = extend(s:keymap, {
-            \ s:new_link_key : s:create_note_window,
-            \ s:delete_note_key : s:create_note_window,
-            \ s:rename_notes_key : s:create_note_window,
-            \ s:remove_link_key : s:create_note_window,
-            \ s:new_note_key : s:create_note_window,
-            \ })
+
+let s:actions = {
+            \ s:new_link_key: function("s:new_link"),
+            \ s:remove_links_key: function("s:remove_links"),
+            \ s:delete_note_key: function("s:delete_note"),
+            \ s:rename_notes_key: function("s:rename_note"),
+            \ s:new_note_key: function("s:new_note"),
+            \ }
+let s:keymap = extend(copy(s:commands), s:actions)
 
 " FZF expects a comma separated string.
 let s:expect_keys = join(keys(s:keymap) + get(g:, 'z_expect_keys', []), ',')
@@ -98,7 +100,6 @@ let s:expect_keys = join(keys(s:keymap) + get(g:, 'z_expect_keys', []), ',')
 "============================ Helper Functions ==============================
 
 function! s:trim_title(title)
-    " let title = substitute(a:title[1:], ' @.*', '', 'g') " Remove tags
     let title = a:title[1:]
     return trim(title)
 endfunction
@@ -134,14 +135,6 @@ function! s:parse_previewbody(previewbody)
     return [l:basename, l:filebody]
 endfunction
 
-" Replace all `[name]('basename')` with `name`
-function! s:remove_link(basename)
-    return {key,val -> substitute(val,
-                \ '\[\(.\{-}\)](\(' . a:basename . '\))',
-                \ '\1',
-                \ 'g')}
-endfunction
-
 "============================== Testing Function ===========================
 function! s:test()
     function! s:test_time()
@@ -169,178 +162,184 @@ map <leader>t :write! <bar> source /home/trey/.vim/plugin/zettel/zettel.vim <bar
 
 "============================== Handler Function ===========================
 
+" Integrate python in these functions where it will help
 function! s:handler(lines) abort
     " debugging
     let g:local = l:
     let g:script = s:
 
-    " 'a:lines' is a list consisting of [query, keypress, ...previewbodies]
-    let query    = a:lines[0]
-    let keypress = a:lines[1]
-    let previewbodies = map(a:lines[2:], 'split(v:val, "")')
-    call map(previewbodies, 's:parse_previewbody(v:val)')
-    let cmd = get(s:keymap, keypress, 'edit')
+    " 'a:lines' :: [query, keypress, ...previewbodies]
+    let request = {
+                \ "query": a:lines[0],
+                \ "keypress": a:lines[1],
+                \ "previewbodies": map(a:lines[2:], 's:parse_previewbody(split(v:val, ""))'),
+                \ }
 
-    " Create a new note using 'query' when fzf can't find 'query'
-    " If user tagged previews, add their respective headers as tags to new file
-    if empty(previewbodies) || keypress ==? s:new_note_key
-        let filename = s:main_dir . strftime("%Y%W%u%H%M%S") . s:ext " YYYYWWDHHMMSS
-        let startswithhash = (match(query, '^#') != -1) ? "" : "#"
-        echomsg filename
+    if empty(request.previewbodies)
+        call s:new_note(request)
+    else
+        call get(s:actions, request.keypress, function("s:edit_previewbodies"))(request)
+    endif
+endfunction
 
-        " Generate a list of 'filetags' for each 'previewbody'
-        let filetags = []
-        for [basename, filebody] in previewbodies
-            call add(filetags, s:trim_title(filebody[0]))
+function! s:edit_previewbodies(req) abort
+    let cmd = get(s:commands, a:req.keypress, 'edit')
+    for [basename, _] in a:req.previewbodies
+        execute cmd s:main_dir . basename
+    endfor
+endfunction
+
+function! s:new_note(req) abort
+    function! s:to_filef_tags(previewbodies)
+        " Convert each 'previewbody' title to a 'filetag'
+        let f_tags = []
+        for [_, f_body] in a:previewbodies
+            call add(f_tags, s:trim_title(f_body[0]))
         endfor
 
-        if len(filetags) == 0
-            let filetags = ''
+        " awkward '@' if len(filef_tags) == 0
+        if len(f_tags) == 0
+            let f_tags = ''
         else
-            let filetags = '@' . join(filetags, ' @')
+            let f_tags = '@' . join(f_tags, ' @')
         endif
 
-        " let heading = startswithhash . query . filetags
-        " call writefile([heading, repeat('-', 80)], filename)
+        return f_tags
+    endfunction
 
-        call writefile([startswithhash . query, filetags, '> ', repeat('-', 80)], filename)
-        execute cmd filename
+    let f_path = s:main_dir . strftime("%Y%W%u%H%M%S") . s:ext " $HOME/notes/YYYYWWDHHMMSS.md
+    let f_title = substitute(a:req.query, '^#\?', '#', '')
+    let f_tags = s:to_filetags(a:req.previewbodies)
+    let f_body = [f_title, f_tags, '']
+    call writefile(f_body, f_path)
 
-    " Replace all references to current buffer title with user replacement
-    elseif keypress ==? s:rename_notes_key
-        let buf_replacement = input("New name: ")
-        let buf_basename = s:file_basename(bufname("%"))
-        let buf_filename = s:main_dir . buf_basename
-        let buf_title = s:trim_title(getline(1))
-
-        " Replace all links refering to 'buf_filename' with 'buf_replacement'
-        for [basename, filebody] in previewbodies
-            if len(filebody) == 0 | continue | endif
-            " Use 'buf_basename' as it's more solid
-            let Regex = {key,val -> substitute(val,
-                        \ '\[.\{-}\]('.buf_basename.')',
-                        \ '['.buf_replacement.']('.buf_basename.')',
-                        \ 'g')}
-            call map(filebody, Regex)
-            call writefile(filebody, s:main_dir . basename)
-            call s:redraw_file(s:main_dir . basename)
-        endfor
-
-        " Replace all 'buf_title' with 'buf_replacement' in current buffer
-        let buf_filebody = readfile(buf_filename)
-        call map(buf_filebody, 'substitute(v:val, buf_title, buf_replacement, "")')
-        call writefile(buf_filebody, buf_filename)
-        call s:redraw_file(buf_filename)
-
-    " Delete all selected files and remove links to them (don't touch modified buffers)
-    elseif keypress ==? s:delete_note_key
-        let basenames = map(copy(previewbodies), 'v:val[0]')
-        let choice = confirm("Delete " . join(basenames, ', ') . "?", "&Yes\n&No", 1)
-        if choice == 2 | return | endif
-
-        " Delete selected files and their buffers (if the are loaded) first
-        for basename in basenames
-            let bufinfo = getbufinfo(basename)
-            if !empty(bufinfo)
-                if !bufinfo[0].changed && bufinfo[0].loaded
-                    execute "bdelete" bufinfo[0].name
-                endif
-            endif
-            call delete(s:main_dir . basename)
-        endfor
-        redraw!
-
-        let join_basenames = join(basenames, '\|')
-        " Replace all '[name]("basename")' with 'name' in all notes
-        for filename in glob(s:main_dir . "*" . s:ext, 0, 1, 1)
-            let Regex = s:remove_link(join_basenames)
-            let Filter = {key,val -> -1 == match(val, '> \[.\{-}\]('.join_basenames.')')}
-
-            let filebody = readfile(filename)
-            let filebody = filter(filebody, Filter)
-            let filebody = map(filebody, Regex)
-            call writefile(filebody, filename)
-        endfor
-
-    elseif keypress ==? s:remove_link_key
-        let buf_basename = s:file_basename(bufname("%"))
-        let buf_filename = s:main_dir . buf_basename
-        let buf_filebody = readfile(buf_filename)
-
-        for [basename, filebody] in previewbodies
-            if len(filebody) == 0 | continue | endif
-            let title = s:trim_title(filebody[0])
-
-            " Remove links in 'filebody' to 'basename'
-            function! s:remove_links(filebody, basename, filename)
-                " '-1 == match(...)' to keep lines that don't match regex
-                let Filter = {key,val -> -1 == match(val, '> \[.\{-}\]('.a:basename.')')}
-                let fun_filebody = filter(a:filebody, Filter)
-                call map(fun_filebody, s:remove_link(a:basename))
-                call writefile(fun_filebody, a:filename)
-            endfunction
-
-            call s:remove_links(filebody, buf_basename, s:main_dir . basename)
-            call s:remove_links(buf_filebody, basename, buf_filename)
-            call s:redraw_file(s:main_dir . basename)
-        endfor
-
-        call s:redraw_file(buf_filename)
-
-    " Create a link from current file to all files referencing title
-    " If only linking file, '"+*' registers are set to a link to that file
-    elseif keypress ==? s:new_link_key
-        write
-        " get buffer title+basename and create a link
-        let buf_title = s:trim_title(getline(1))
-        let buf_basename = s:file_basename(bufname("%"))
-        let buf_link = s:create_link(buf_title, buf_basename)
-
-        for [basename, filebody] in previewbodies
-            if len(filebody) == 0 | continue | endif
-            let title = s:trim_title(filebody[0])
-
-            " Add links in 'filebody' to 'buf_basename'
-            let HasBufname = {key,val -> match(val, buf_basename)}
-            if -1 == max(map(copy(filebody), HasBufname))
-                " there are no references to 'buf_basename' append link at bottom
-                " call setbufline(basename, s:height.link, getbufline(basename, s:height.link) . ' ' . filelink)
-                let filebody[s:height.link - 1] .= ' ' . buf_link
-                " let filebody[s:height.link] = filebody[s:height.link] . ' ' . buf_link
-                " call add(filebody, '> ' . buf_link)
-            else
-                " Make all references to 'buf_title' a link iff. it is not already a link
-                let Regex = {key,val -> substitute(val, '\[\@<!'.buf_title.'\]\@!', buf_link, 'g')}
-                let filebody[1:] = map(filebody[1:], Regex)
-            endif
-            call writefile(filebody, s:main_dir . basename)
-            call s:redraw_file(s:main_dir . basename)
-
-            " Place link in current buffer (or set register if only one file selected)
-            let filelink = s:create_link(title, basename)
-            " Add link to 'buf_basename' but don't duplicate links
-            if search(basename, 'cnw') == 0
-                if len(previewbodies) == 1
-                    let @" = filelink
-                    let @* = filelink
-                    let @+ = filelink
-                endif
-                if basename != buf_basename
-                    call setline("$", getline(s:height.link) . ' ' . filelink)
-                endif
-            endif
-
-        endfor
-        redraw!
-
-    " Execute cmd for each file files
-    else
-        for [basename, _] in previewbodies
-            execute cmd s:main_dir . basename
-        endfor
-    endif
-
+    let cmd = get(s:commands, a:req.keypress, s:default_command)
+    execute cmd f_path
 endfunction
+
+function! s:delete_note(req) abort
+    let basenames = map(copy(a:req.previewbodies), 'v:val[0]')
+    let choice = confirm("Delete " . join(basenames, ', ') . "?", "&Yes\n&No", 1)
+    if choice == 2 | return | endif
+
+    " Delete selected files and their buffers (if the are loaded)
+    for basename in basenames
+        let bufinfo = getbufinfo(basename)
+        if !empty(bufinfo)
+            if !bufinfo[0].changed && bufinfo[0].loaded
+                execute "bdelete" bufinfo[0].name
+            endif
+        endif
+        call delete(s:main_dir . basename)
+    endfor
+
+    let join_basenames = join(basenames, '\|')
+    " Replace all '[name]("basename")' with 'name' in all notes
+    for filename in glob(s:main_dir . "*" . s:ext, 0, 1, 1)
+        let filebody = readfile(filename)
+        call map(filebody, s:remove_link(join_basenames))
+        call writefile(filebody, filename)
+    endfor
+    redraw!
+endfunction
+
+function! s:remove_links(req) abort
+    let buf_basename = s:file_basename(bufname("%"))
+    let buf_filename = s:main_dir . buf_basename
+    let buf_filebody = readfile(buf_filename)
+
+    for [basename, filebody] in a:req.previewbodies
+        if len(filebody) == 0 | continue | endif
+        let title = s:trim_title(filebody[0])
+
+        call map(filebody, s:remove_link(buf_basename))
+        call writefile(filebody, s:main_dir . basename)
+
+        call map(buf_filebody, s:remove_link(basename))
+        call writefile(buf_filebody, buf_filename)
+
+        call s:redraw_file(s:main_dir . basename)
+    endfor
+
+    call s:redraw_file(buf_filename)
+endfunction
+
+" Replace all `[name]('basename')` with `name`
+function! s:remove_link(basename)
+    return {key,val -> substitute(val,
+                \ '\[\(.\{-}\)](\(' . a:basename . '\))',
+                \ '\1',
+                \ 'g')}
+endfunction
+
+function! s:rename_note(req) abort
+    let buf_replacement = input("New name: ")
+    let buf_basename = s:file_basename(bufname("%"))
+    let buf_title = s:trim_title(getline(1))
+
+    " Replace all links refering to 'buf_bufname' with 'buf_replacement'
+    for [basename, filebody] in a:req.previewbodies
+        if len(filebody) == 0 | continue | endif
+        " Use 'buf_basename' as it's more solid
+        let RenameLinks = {key,val -> substitute(val,
+                    \ '\[.\{-}\]('.buf_basename.')',
+                    \ '['.buf_replacement.']('.buf_basename.')',
+                    \ 'g')}
+        call map(filebody, RenameLinks)
+        call writefile(filebody, s:main_dir . basename)
+        call s:redraw_file(s:main_dir . basename)
+    endfor
+
+    " Replace all 'buf_title' with 'buf_replacement' in current buffer
+    let buf_filename = s:main_dir . buf_basename
+    let buf_filebody = readfile(buf_filename)
+    call map(buf_filebody, 'substitute(v:val, buf_title, buf_replacement, "")')
+    call writefile(buf_filebody, buf_filename)
+    call s:redraw_file(buf_filename)
+endfunction
+
+function! s:new_link(req) abort
+    write
+    " get buffer title+basename and create a link
+    let buf_title = s:trim_title(getline(1))
+    let buf_basename = s:file_basename(bufname("%"))
+    let buf_link = s:create_link(buf_title, buf_basename)
+
+    for [basename, filebody] in a:req.previewbodies
+        if len(filebody) == 0 | continue | endif
+        let title = s:trim_title(filebody[0])
+
+        " Add links in 'filebody' to 'buf_basename'
+        let HasBufname = {key,val -> match(val, buf_basename)}
+        if -1 == max(map(copy(filebody), HasBufname))
+            " there are no references to 'buf_basename' append link at bottom
+            let filebody[s:height.link - 1] .= ' ' . buf_link
+        else
+            " Make all references to 'buf_title' a link iff. it is not already a link
+            let Regex = {key,val -> substitute(val, '\[\@<!'.buf_title.'\]\@!', buf_link, 'g')}
+            let filebody[1:] = map(filebody[1:], Regex)
+        endif
+        call writefile(filebody, s:main_dir . basename)
+        call s:redraw_file(s:main_dir . basename)
+
+        " Place link in current buffer (or set register if only one file selected)
+        let filelink = s:create_link(title, basename)
+        " Add link to 'buf_basename' but don't duplicate links
+        if search(basename, 'cnw') == 0
+            if len(a:req.previewbodies) == 1
+                let @" = filelink
+                let @* = filelink
+                let @+ = filelink
+            endif
+            if basename != buf_basename
+                call setline("$", getline(s:height.link) . ' ' . filelink)
+            endif
+        endif
+
+    endfor
+    redraw!
+endfunction
+
 
 " Use `command` in front of 'rg' to ignore aliases.
 " The `' "\S" '` is so that the backslash itself doesn't require escaping.
@@ -417,7 +416,7 @@ function! s:clean_http_link()
         let reg = getreg(s:reg)
         " link [0]=match [1]=scheme [2]=www [3]=rest [4]=resource
         let link = matchlist(reg, '\v^(\w+)://(www\.)?(.{-})/(.{-})(/)?$')
-        let link[3:4] = map(link[3:4], "tr(v:val, '/-_', ':  ')")
+        let link[3:4] = map(link[3:4], "tr(v:val, '/-_+', ':   ')")
         let link = s:create_link(join(link[3:4], ':'), reg)
         call setreg('+', link)
     catch /^Vim\%((\a\+)\)\=:E684/
