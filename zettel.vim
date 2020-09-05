@@ -85,6 +85,10 @@ map <leader>t :write! <bar> source /home/trey/.vim/plugin/zettel/zettel.vim <bar
 
 "============================ Helper Functions ==============================
 
+function! s:file_title(filebody)
+    return s:trim_title(a:filebody[0])
+endfunction
+
 function! s:trim_title(title)
     let title = a:title[1:]
     return trim(title)
@@ -147,7 +151,7 @@ function! s:new_note(req) abort
     let f_path = s:main_dir . strftime("%Y%W%u%H%M%S") . s:ext " $HOME/notes/YYYYWWDHHMMSS.md
     let f_title = substitute(a:req.query, '^#\?', '#', '')
     let f_tags = s:to_filetags(a:req.previewbodies)
-    let f_body = [f_title, f_tags, '']
+    let f_body = [f_title]
     call writefile(f_body, f_path)
 
     let cmd = get(s:commands, a:req.keypress, s:default_command)
@@ -187,29 +191,31 @@ function! s:delete_note(req) abort
         call delete(s:main_dir . basename)
     endfor
 
-    let join_basenames = join(basenames, '\|')
-    " Replace all '[name]("basename")' with 'name' in all notes
+    let filetitles = map(copy(a:req.previewbodies), 's:file_title(v:val)')
+    let join_titles = join(filetitles, '\|')
+    " Remove all tags
     for filename in glob(s:main_dir . "*" . s:ext, 0, 1, 1)
         let filebody = readfile(filename)
-        call map(filebody, s:remove_link(join_basenames))
+        call map(filebody, s:remove_tag(join_titles))
         call writefile(filebody, filename)
     endfor
     redraw!
 endfunction
 
-function! s:remove_links(req) abort
+function! s:remove_tags(req) abort
     let buf_basename = s:file_basename(bufname("%"))
     let buf_filename = s:main_dir . buf_basename
     let buf_filebody = readfile(buf_filename)
+    let buf_title = s:file_title(buf_filebody)
 
     for [basename, filebody] in a:req.previewbodies
         if len(filebody) == 0 | continue | endif
-        let title = s:trim_title(filebody[0])
+        let title = s:file_title(filebody)
 
-        call map(filebody, s:remove_link(buf_basename))
+        call map(filebody, s:remove_tag(buf_title))
         call writefile(filebody, s:main_dir . basename)
 
-        call map(buf_filebody, s:remove_link(basename))
+        call map(buf_filebody, s:remove_tag(title))
         call writefile(buf_filebody, buf_filename)
 
         call s:redraw_file(s:main_dir . basename)
@@ -218,10 +224,10 @@ function! s:remove_links(req) abort
     call s:redraw_file(buf_filename)
 endfunction
 
-" Replace all `[name]('basename')` with `name`
-function! s:remove_link(basename)
+" Remove all `@title`
+function! s:remove_tag(basename)
     return {key,val -> substitute(val,
-                \ '\[\(.\{-}\)](\(' . a:basename . '\))',
+                \ '\s*@'.a:title,
                 \ '\1',
                 \ 'g')}
 endfunction
@@ -234,13 +240,14 @@ function! s:rename_note(req) abort
 
     " Replace all links refering to 'buf_bufname' with 'buf_replacement'
     for [basename, filebody] in a:req.previewbodies
+        let title = s:trim_title(filebody[0])
         if len(filebody) == 0 | continue | endif
         " Use 'buf_basename' as it's more solid
-        let RenameLinks = {key,val -> substitute(val,
-                    \ '\[.\{-}\]('.buf_basename.')',
-                    \ '['.buf_replacement.']('.buf_basename.')',
+        let RenameTags = {key,val -> substitute(val,
+                    \ '\(\s*\)@'.title,
+                    \ '\1@'.buf_replacement,
                     \ 'g')}
-        call map(filebody, RenameLinks)
+        call map(filebody, RenameTags)
         call writefile(filebody, s:main_dir . basename)
         call s:redraw_file(s:main_dir . basename)
     endfor
@@ -277,7 +284,7 @@ endfunction
 " t=tag → tag zettels
 let s:tag_note_key = get(g:, 'z_tag_note_key', 'ctrl-t')
 " r=remove link → unlink buffer with selection list
-let s:remove_links_key = get(g:, 'z_remove_link_key', 'ctrl-r')
+let s:remove_tags_key = get(g:, 'z_remove_tag_key', 'ctrl-r')
 " d=delete → delete all selected notes, asks user for confirmation
 let s:delete_note_key = get(g:, 'z_delete_note_key', 'ctrl-d')
 " c=change → change(rename) the header of selected files to 'input()'
@@ -296,7 +303,7 @@ let s:create_note_window = get(g:, 'z_create_note_window', 'edit ')
 
 let s:actions = {
             \ s:tag_note_key: function("s:tag_note"),
-            \ s:remove_links_key: function("s:remove_links"),
+            \ s:remove_tags_key: function("s:remove_tags"),
             \ s:delete_note_key: function("s:delete_note"),
             \ s:rename_notes_key: function("s:rename_note"),
             \ s:new_note_key: function("s:new_note"),
