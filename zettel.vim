@@ -149,9 +149,9 @@ endfunction
 
 function! s:new_note(req) abort
     let f_path = s:main_dir . strftime("%Y%W%u%H%M%S") . s:ext " $HOME/notes/YYYYWWDHHMMSS.md
-    let f_title = substitute(a:req.query, '^#\?', '#', '')
-    let f_tags = s:to_filetags(a:req.previewbodies)
-    let f_body = [f_title]
+    " let f_title = substitute(a:req.query, '^#\?', '#', '')
+    " let f_tags = s:to_filetags(a:req.previewbodies)
+    let f_body = []
     call writefile(f_body, f_path)
 
     let cmd = get(s:commands, a:req.keypress, s:default_command)
@@ -325,7 +325,7 @@ let s:fzf_options =
             \   '--multi',
             \   '--exact',
             \   '--inline-info',
-            \   '--tiebreak=' . 'begin,length' ,
+            \   '--tiebreak=' . 'index' ,
             \   '--bind=' .  join([
             \     'alt-a:select-all',
             \     'alt-q:deselect-all',
@@ -402,3 +402,4 @@ function! s:create_link(title, filename)
 endfunction
 
 command! ToMarkdownLink call s:clean_http_link()
+
