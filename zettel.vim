@@ -28,7 +28,29 @@ let s:reg = get(g:, 'z_default_register', '+')
 " Window stuff
 let s:window_direction = get(g:, 'z_window_direction', 'down')
 let s:window_width = get(g:, 'z_window_width', '40%')
-let s:window_command = get(g:, 'z_window_command', '')
+" let s:window_command = get(g:, 'z_window_command', '')
+let s:window_command = 'call FloatingFZF()'
+function! FloatingFZF()
+  let buf = nvim_create_buf(v:false, v:true)
+  call setbufvar(buf, '&signcolumn', 'no')
+
+  let height = float2nr(25)
+  let width = float2nr(100)
+  let horizontal = float2nr((&columns - width) / 2)
+  let vertical = 1
+
+  let opts = {
+        \ 'relative': 'editor',
+        \ 'row': vertical,
+        \ 'col': horizontal,
+        \ 'width': width,
+        \ 'height': height,
+        \ 'style': 'minimal'
+        \ }
+
+  call nvim_open_win(buf, v:true, opts)
+endfunction
+
 
 " Valid options are ['up', 'down', 'right', 'left']. Default is 'right'. No colon for
 " this command since it's first in the list.
@@ -152,7 +174,7 @@ function! s:new_note(req) abort
     " let f_title = substitute(a:req.query, '^#\?', '#', '')
     " let f_tags = s:to_filetags(a:req.previewbodies)
     let f_body = []
-    call writefile(f_body, f_path)
+    " call writefile(f_body, f_path)
 
     let cmd = get(s:commands, a:req.keypress, s:default_command)
     execute cmd f_path
@@ -275,11 +297,10 @@ endfunction
 
 "=========================== Keymap ========================================
 
-" unusable/iffy/usuable
+" unusable/iffy/usuable/inuse
 " a c e m n p u w y
 " j k l
-" d l r t z
-" b f g h o q r s v
+" b f g h o q r s v z
 
 " t=tag → tag zettels
 let s:tag_note_key = get(g:, 'z_tag_note_key', 'ctrl-t')
@@ -289,8 +310,8 @@ let s:remove_tags_key = get(g:, 'z_remove_tag_key', 'ctrl-r')
 let s:delete_note_key = get(g:, 'z_delete_note_key', 'ctrl-d')
 " c=change → change(rename) the header of selected files to 'input()'
 let s:rename_notes_key = get(g:, 'z_rename_notes_key', 'ctrl-c')
-" z=zettel → create a new zettel
-let s:new_note_key = get(g:, 'z_new_note_key', 'ctrl-z')
+" o=open → create a new zettel
+let s:new_note_key = get(g:, 'z_new_note_key', 'ctrl-o')
 
 let s:default_command = 'edit'
 let s:commands = get(g:, 'z_commands',

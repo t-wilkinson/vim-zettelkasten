@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 dir=$1
 ext=$2
-for f in $(command fd . "$dir" -e "$ext"); do
+for f in $(command fd . "$dir" --exact-depth 1 -e "$ext"); do
     # Human readable time format
     base=$(basename $f)
     year=${base:0:4}
