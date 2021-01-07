@@ -70,16 +70,6 @@ let s:include_hidden = get(g:, 'z_include_hidden', 0) ? '--hidden' : ''
 " How wide to make preview window. 72 characters is default.
 let s:preview_width = exists('g:z_preview_width') ? string(float2nr(str2float(g:z_preview_width) / 100.0 * &columns)) : ''
 
-"=========================== Windows Overrides ============================
-
-if has('win64') || has('win32')
-    let s:null_path = 'NUL'
-    let s:command = ''
-else
-    let s:null_path = '/dev/null'
-    let s:command = 'command'
-endif
-
 "============================== Testing Function ===========================
 function! s:test()
     function! s:test_time()
@@ -133,7 +123,6 @@ endfunction
 
 "============================== Handler Function ===========================
 
-" Integrate python in these functions where it will help
 function! s:handler(lines) abort
 
     " Convert fzf-preview 'previewbody' to managable 'basename' and 'filebody'
@@ -335,7 +324,6 @@ let s:keymap = extend(copy(s:commands), s:actions)
 let s:expect_keys = join(keys(s:keymap) + get(g:, 'z_expect_keys', []), ',')
 
 
-
 " Use `command` in front of 'rg' to ignore aliases.
 " The `' "\S" '` is so that the backslash itself doesn't require escaping.
 let s:fzf_options =
@@ -366,7 +354,7 @@ let s:fzf_options =
             \   ,':')
             \   ])
 
-command! -nargs=* -bang Z
+command! -nargs=* -bang Zettel
             \ call fzf#run(
             \ fzf#wrap({
             \ 'sink*': function(exists('*z_note_handler') ? 'z_note_handler' : '<sid>handler'),
@@ -390,7 +378,7 @@ function! s:get_visual_selection() abort
 endfunction
 
 " Calling this function will initialize query with visual selection
-command! -range -nargs=* -bang ZV
+command! -range -nargs=* -bang ZettelVvisual
             \ call fzf#run(
             \ fzf#wrap({
             \ 'sink*': function(exists('*z_note_handler') ? 'z_note_handler' : '<sid>handler'),
@@ -403,24 +391,4 @@ command! -range -nargs=* -bang ZV
             \   '--expect=' . s:expect_keys,
             \ ]),
             \ },<bang>0))
-
-
-" Clean http/s link for mardown
-function! s:clean_http_link()
-    try " may fail
-        let reg = getreg(s:reg)
-        " link [0]=match [1]=scheme [2]=www [3]=rest [4]=resource
-        let link = matchlist(reg, '\v^(\w+)://(www\.)?(.{-})/(.{-})(/)?$')
-        let link[3:4] = map(link[3:4], "tr(v:val, '/-_+', ':   ')")
-        let link = s:create_link(join(link[3:4], ':'), reg)
-        call setreg('+', link)
-    catch /^Vim\%((\a\+)\)\=:E684/
-    endtry
-endfunction
-
-function! s:create_link(title, filename)
-    return '[' . a:title . '](' . a:filename . ')'
-endfunction
-
-command! ToMarkdownLink call s:clean_http_link()
 
