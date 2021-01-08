@@ -5,11 +5,9 @@ The general ideas are:
 1. Quickly add notes and reduce decision fatigue. Achieved by forming a graph structure like your brain.
 1. Have notes which are atomic, well thought out, deep, concise, and analyze connections.
 1. Facilitate the realization of connections between seemingly distinct ideas.
-1. Provide a fast and intuitive infrastructure for creating, editing, viewing, and recalling your notes.
-1. Provide 'low-level' interface to searching notes to *adapt to the user*, not the other way around.
-1. Generic enough to work for all of your notes, ideas, todos, etc.
-1. Use text-based, markdown format so you have full freedom with your ideas.
-1. Easily search for and find what you want.
+1. Provide a fast and intuitive infrastructure for creating, editing, viewing, and searching (via fzf) your notes which *adapt to the user* (not the other way around)..
+1. Use a text-based, markdown format so you have full freedom and power to work with your notes, ideas, todos, thoughts, journal, etc.
+1. `fzf` and `bat` (`cat` with syntax highlighting) are the perfect tools to powerfully search text and to preview it.
 
 ## File Format
 The program expects the first line of the file to have 'tags', each of which start with an `@` and are directly preceeded by a variable amount of non space characters, then a space (unless it begin the line). An example:
@@ -24,11 +22,12 @@ You may notice there are no titles, like maybe `# My title`. I find titles ambig
 The program then provides functionality as follows:
 | Command | Description |
 | ----- | ---- |
-| tab   | Select a file which some operations act on |
-| `<c-o>` | Create a new file |
-| `<c-t>` | Take selected files, user input, and tag each selected file with user input |
-| `<c-r>` | Take selected files, interpret user input as a tag, and remove tag wherever referred in selected files |
-| `<c-d>` | Delete all selected files |
+| tab   | Select a note which some of the following operations act on |
+| `<c-o>` | Create a new note |
+| `<c-t>` | Take selected notes, user input, and tag each selected note with user input |
+| `<c-r>` | Take selected notes, interpret user input as a tag, and remove tag wherever referred in selected notes |
+| `<c-d>` | Delete all selected notes |
+*NOTE: `man fzf` to see other available options and key bindings.*
 
 ## Use
 The primary command is `:Zettel` (and `:ZettelVisual` which uses the visual selection as search text). The program uses fzf to search the notes directory and defaults on literal (non-fuzzy) searching. This enables one, for example, to search `@Book` to find all notes which tag `Book`. How to search for a specific book? How about `@Book @Hyperfocus @Chris\ Bailey` (notice the `\ ` which searches for a literal space, as normally a space breaks up the search in fzf). I hope you find similar use as well.
