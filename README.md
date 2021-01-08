@@ -1,20 +1,29 @@
 # Vim Zettelkasten
-*an interpretation and implementation of the Zettelkasten technique.*
+*a vim implementation of a [Zettelkasten](https://en.wikipedia.org/wiki/Zettelkasten).*
 
-**If you don't know what a [Zettelkasten](https://en.wikipedia.org/wiki/Zettelkasten), I recommend you look it up. However, the general ideas are:**
+The general ideas are:
 1. Have notes which are atomic, very well thought out, short, and concise.
 1. Have connections between notes, these are very important.
-1. Remove the intrinsic meaning of hierarchies (This package does this by allowing you to have an infinite amount.)
+1. Remove the intrinsic meaning of hierarchies, achieved in this implementation through the graph structure tags form.
 1. Facilitate the realization of connections between seemingly distinct ideas.
 1. A one stop shop for all of your notes and ideas.
+1. Provide a fast and intuitive infrastructure for creating, editing, and viewing your notes.
+1. Organize your notes like your brain
 
-**Goals**
-- The goal of this implementation is to provide a very fast and intuitive infrastructure for creating, editing, and viewing your notes.
+## File Format
+The program expects the first line of the file to have 'tags' (which can have spaces), each of which start with an `@`. Note that also to be recognized as a tag, the `@` must be at the start of the line or be preceeded by a space. An example:
+```
+@Tag1 @Tag2 @Tag with spaces @...
+Rest of file text here...
+```
 
-**Notes**
-- This package assumes you are using `$HOME/notes` for your notes.
-- Only tested on Linux, should work on macOS, probably won't work on Windows.
-- This uses $'\f' characters to separate items and may be an issue.
+## Functionality
+| Key | Description |
+| ----- | ---- |
+| `<c-o>` |  Create a new file |
+| `<c-t>` |  Take selected files, user input, and tag each selected file with user input |
+| `<c-r>` | Take selected files, interpret user input as a tag, and remove tag wherever referred in selected files |
+| `<c-d>` | Delete all selected files |
+
+## Notes
 - Configurable options are: `z_main_dir`, `z_default_extension`, `z_window_direction`, `z_window_width`, `z_window_command`, `z_preview_direction`, `z_wrap_preview_text`, `z_show_preview`, `z_use_ignore_files`, `z_include_hidden`, `z_preview_width`
-- Sorts by date created so the most recent note will be instantly accessible.
-- The goal is to have the markdown function best in the terminal but still have it look decent in markdown format in the browser.
