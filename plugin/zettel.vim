@@ -13,7 +13,7 @@ endif
 "============================== User settings ==============================
 
 " File stuff.
-let s:main_dir = get(g:, 'z_main_dir', $HOME.'/.vim/notes') . '/'
+let s:notes_dir = get(g:, 'z_notes_dir', expand('<sfile>:p:h:h').'/notes') . '/'
 let s:ext = get(g:, 'z_default_extension', '.md')
 let s:reg = get(g:, 'z_default_register', '+')
 let s:script_dir = expand('<sfile>:h')
@@ -90,7 +90,7 @@ function! s:handler(lines) abort
     function! s:edit_previewbodies(req) abort
         let cmd = get(s:commands, a:req.keypress, 'edit')
         for [basename, _] in a:req.previewbodies
-            execute cmd s:main_dir . basename
+            execute cmd s:notes_dir . basename
         endfor
     endfunction
 
@@ -108,7 +108,7 @@ function! s:handler(lines) abort
 endfunction
 
 function! s:create_new_note(req) abort
-    let f_path = s:main_dir . strftime("%Y%W%u%H%M%S") . s:ext " $HOME/notes/YYYYWWDHHMMSS.md
+    let f_path = s:notes_dir . strftime("%Y%W%u%H%M%S") . s:ext " $HOME/notes/YYYYWWDHHMMSS.md
     let cmd = get(s:commands, a:req.keypress, s:default_command)
     execute cmd f_path
 endfunction
@@ -128,7 +128,7 @@ function! s:delete_notes(req) abort
                 execute "bdelete" bufinfo[0].name
             endif
         endif
-        call delete(s:main_dir . basename)
+        call delete(s:notes_dir . basename)
     endfor
 endfunction
 
@@ -143,8 +143,8 @@ function! s:remove_tag_from_notes(req) abort
         " NOTE: You COULD use the following line but it only applies to a few situations and has a dramatic slowdown
         " call map(filebody, RemoveTag)
         let filebody[0] = RemoveTag(filebody[0])
-        call writefile(filebody, s:main_dir . basename)
-        call s:redraw_file(s:main_dir . basename)
+        call writefile(filebody, s:notes_dir . basename)
+        call s:redraw_file(s:notes_dir . basename)
     endfor
 endfunction
 
@@ -152,8 +152,8 @@ function! s:add_tag_to_notes(req) abort
     let tag = input('tag to add @')
     for [basename, filebody] in a:req.previewbodies
         let filebody[0] = filebody[0].' @'.l:tag
-        call writefile(filebody, s:main_dir . basename)
-        call s:redraw_file(s:main_dir . basename)
+        call writefile(filebody, s:notes_dir . basename)
+        call s:redraw_file(s:notes_dir . basename)
     endfor
 endfunction
 
@@ -230,7 +230,7 @@ command! -nargs=* -bang Zettel
             \ 'sink*': function(exists('*z_note_handler') ? 'z_note_handler' : '<sid>handler'),
             \ 'window': s:window_command,
             \ s:window_direction: s:window_width,
-            \ 'source': s:bin.source . ' ' . shellescape(s:main_dir) . ' ' . s:ext,
+            \ 'source': s:bin.source . ' ' . shellescape(s:notes_dir) . ' ' . s:ext,
             \ 'options': join([
             \   s:fzf_options,
             \   '--expect=' . s:expect_keys,
@@ -244,7 +244,7 @@ command! -range -nargs=* -bang ZettelVvisual
             \ 'sink*': function(exists('*z_note_handler') ? 'z_note_handler' : '<sid>handler'),
             \ 'window': s:window_command,
             \ s:window_direction: s:window_width,
-            \ 'source': s:script_dir . '/source.sh'.' '.shellescape(s:main_dir).' '.s:ext,
+            \ 'source': s:script_dir . '/source.sh'.' '.shellescape(s:notes_dir).' '.s:ext,
             \ 'options': join([
             \   s:fzf_options,
             \   '--query=' . s:get_visual_selection(),
