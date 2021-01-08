@@ -36,3 +36,6 @@ The command is `:Zettel` (and `:ZettelVisual` which uses the visual selection as
 
 ## Possible updates
 - Have an option to select a random note (maybe using `sort -R` or `shuf`).
+
+## Permissions
+Do what ever you want with this code.

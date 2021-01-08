@@ -12,18 +12,20 @@ endif
 
 "============================== User settings ==============================
 
-" File stuff. Use a single, non-nested directory to store all files.
-let s:script_dir = expand('<sfile>:h')
-" let s:main_dir = expand('<sfile>:p:h').'/notes/'
+" File stuff.
 let s:main_dir = get(g:, 'z_main_dir', $HOME.'/.vim/notes') . '/'
 let s:ext = get(g:, 'z_default_extension', '.md')
 let s:reg = get(g:, 'z_default_register', '+')
+let s:script_dir = expand('<sfile>:h')
+let s:bin_dir = expand('<sfile>:p:h:h').'/bin/'
+let s:bin = { 'preview': s:bin_dir.'preview.sh',
+            \ 'source': s:bin_dir.'source.sh' }
 
 " Window stuff
 let s:window_direction = get(g:, 'z_window_direction', 'down')
 let s:window_width = get(g:, 'z_window_width', '40%')
-" let s:window_command = get(g:, 'z_window_command', '')
-let s:window_command = 'call FloatingFZF()'
+let s:window_command = get(g:, 'z_window_command', 'call FloatingFZF()')
+
 function! FloatingFZF()
   let buf = nvim_create_buf(v:false, v:true)
   call setbufvar(buf, '&signcolumn', 'no')
@@ -32,7 +34,6 @@ function! FloatingFZF()
   let width = float2nr(100)
   let horizontal = float2nr((&columns - width) / 2)
   let vertical = 1
-
   let opts = {
         \ 'relative': 'editor',
         \ 'row': vertical,
@@ -212,7 +213,7 @@ let s:fzf_options =
             \     'alt-d:page-down',
             \     'ctrl-w:backward-kill-word',
             \     ], ','),
-            \   '--preview=' . shellescape(join([s:script_dir . '/preview.sh', s:ext, '{}'])),
+            \   '--preview=' . shellescape(join([s:bin.preview, s:ext, '{}'])),
             \   '--preview-window=' . join(filter(copy([
             \       s:preview_direction,
             \       s:preview_width,
@@ -229,7 +230,7 @@ command! -nargs=* -bang Zettel
             \ 'sink*': function(exists('*z_note_handler') ? 'z_note_handler' : '<sid>handler'),
             \ 'window': s:window_command,
             \ s:window_direction: s:window_width,
-            \ 'source': s:script_dir . '/source.sh' . ' ' . shellescape(s:main_dir) . ' ' . s:ext,
+            \ 'source': s:bin.source . ' ' . shellescape(s:main_dir) . ' ' . s:ext,
             \ 'options': join([
             \   s:fzf_options,
             \   '--expect=' . s:expect_keys,
