@@ -27,7 +27,8 @@ The program then provides functionality as follows:
 | `<c-t>` | Take selected notes, user input, and tag each selected note with user input |
 | `<c-r>` | Take selected notes, interpret user input as a tag, and remove tag wherever referred in selected notes |
 | `<c-d>` | Delete all selected notes |
-*NOTE: `man fzf` to see other available options and key bindings.*
+
+*NOTE: use `man fzf` to see other available options and key bindings.*
 
 ## Use
 The primary command is `:Zettel` (and `:ZettelVisual` which uses the visual selection as search text). The program uses fzf to search the notes directory and defaults on literal (non-fuzzy) searching. This enables one, for example, to search `@Book` to find all notes which tag `Book`. How to search for a specific book? How about `@Book @Hyperfocus @Chris\ Bailey` (notice the `\ ` which searches for a literal space, as normally a space breaks up the search in fzf). I hope you find similar use as well.
