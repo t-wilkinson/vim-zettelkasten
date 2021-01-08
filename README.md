@@ -2,15 +2,14 @@
 *a vim and [fzf](https://github.com/junegunn/fzf) implementation of a [Zettelkasten](https://en.wikipedia.org/wiki/Zettelkasten).*
 
 The general ideas are:
-1. Quickly add notes and reduce decision fatigue.
+1. Quickly add notes and reduce decision fatigue. Achieved by forming a graph structure like your brain.
 1. Have notes which are atomic, well thought out, deep, concise, and analyze connections.
-1. Remove meaning of hierarchies in notes by forming a directed graph structure.
 1. Facilitate the realization of connections between seemingly distinct ideas.
 1. Provide a fast and intuitive infrastructure for creating, editing, viewing, and recalling your notes.
-1. Have notes function like your brain.
 1. Provide 'low-level' interface to searching notes to *adapt to the user*, not the other way around.
 1. Generic enough to work for all of your notes, ideas, todos, etc.
 1. Use text-based, markdown format so you have full freedom with your ideas.
+1. Easily search for and find what you want.
 
 ## File Format
 The program expects the first line of the file to have 'tags', each of which start with an `@` and are directly preceeded by a variable amount of non space characters, then a space (unless it begin the line). An example:
