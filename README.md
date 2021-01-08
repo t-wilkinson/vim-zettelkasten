@@ -28,7 +28,7 @@ The program then provides functionality as follows:
 | `<c-d>` | Delete all selected files |
 
 ## Use
-The command is `:Zettel` (and `:ZettelVisual` which uses the visual selection as search text). The program uses fzf to search the notes directory and defaults on literal (non-fuzzy) searching. This enables one, for example, to search `@Book` to find all notes which tag `Book`. How to search for a specific book? How about `@Book @Hyper focus @Chris Bailey` (I just copied the first line of a random note). Note to include spaces in the search use `\ `.
+The primary command is `:Zettel` (and `:ZettelVisual` which uses the visual selection as search text). The program uses fzf to search the notes directory and defaults on literal (non-fuzzy) searching. This enables one, for example, to search `@Book` to find all notes which tag `Book`. How to search for a specific book? How about `@Book @Hyper focus @Chris Bailey` (I just copied the first line of a random note). Note to include spaces in the search use `\ ` (that is a backslash followed by a space). I hope you find similar use as well.
 
 ## Notes
 - Configurable options are: `z_main_dir`, `z_default_extension`, `z_window_direction`, `z_window_width`, `z_window_command`, `z_preview_direction`, `z_wrap_preview_text`, `z_show_preview`, `z_use_ignore_files`, `z_include_hidden`, `z_preview_width`
