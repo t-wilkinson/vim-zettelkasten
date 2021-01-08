@@ -133,10 +133,11 @@ function! s:delete_notes(req) abort
 endfunction
 
 function! s:remove_tag_from_notes(req) abort
-    let tag = input('tag to remove @')
+    let tag = input('please enter tag (including @): ')
+    if tag == '' | return | endif
     let RemoveTag = {line->substitute(line,
-                    \ '\s*@'.tag.'\s*',
-                    \ ' ',
+                    \ '\s*'.tag,
+                    \ '',
                     \ 'g')}
     for [basename, filebody] in a:req.previewbodies
         if len(filebody) == 0 | continue | endif
@@ -149,9 +150,10 @@ function! s:remove_tag_from_notes(req) abort
 endfunction
 
 function! s:add_tag_to_notes(req) abort
-    let tag = input('tag to add @')
+    let tag = input('please enter tag (including @): ')
+    if tag == '' | return | endif
     for [basename, filebody] in a:req.previewbodies
-        let filebody[0] = filebody[0].' @'.l:tag
+        let filebody[0] = filebody[0].' '.l:tag
         call writefile(filebody, s:notes_dir . basename)
         call s:redraw_file(s:notes_dir . basename)
     endfor
