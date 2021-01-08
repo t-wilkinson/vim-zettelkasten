@@ -18,7 +18,7 @@ Rest of file text here...
 ```
 
 ## Functionality
-| Key | Description |
+| Command | Description |
 | ----- | ---- |
 | `<c-o>` |  Create a new file |
 | `<c-t>` |  Take selected files, user input, and tag each selected file with user input |
