@@ -37,6 +37,7 @@ The primary command is `:Zettel` (and `:ZettelVisual` which uses the visual sele
 - Configurable options are: `z_main_dir`, `z_default_extension`, `z_window_direction`, `z_window_width`, `z_window_command`, `z_preview_direction`, `z_wrap_preview_text`, `z_show_preview`, `z_use_ignore_files`, `z_include_hidden`, `z_preview_width`
 - I recommend choosing tags in relation to how you actually want to *search for notes*, nothing more.
 - I use this program for just about everything. Notes on books, thoughts, todo lists, tracking resources, and plenty more.
+- If you want to open markdown links with applications specific to the link extension, try vim package I have forked [t-wilkinson/vim-mdnav](https://github.com/t-wilkinson/vim-mdnav) from [chmp/mdnav](https://github.com/chmp/mdnav) (the fork simply runs programs in the background and doesn't close with vim).
 
 ## Possible updates
 - Have an option to select a random note (maybe using `sort -R` or `shuf`).
